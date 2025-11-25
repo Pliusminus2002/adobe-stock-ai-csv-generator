@@ -86,7 +86,6 @@
     <p>1. Pasirink savo AI nuotraukas (rekomenduojama iki 30 vienu kartu, iki 100 per savaitę).</p>
     <p>2. Spaudi „Generate CSV“ – gausi <b>output.csv</b>, kur Title/Keywords/Category padaro AI pagal pačią nuotrauką.</p>
 
-    <!-- Rodom savaitinį limitą ir šiandienos datą -->
     <div id="usageBar" style="font-size: 13px; color: #9ca3af; margin-bottom: 8px;">
       Weekly limit: <span id="weeklyLimit">100</span> images •
       Left this week: <span id="remainingCount">100</span> •
@@ -111,27 +110,21 @@
     const weeklyLimitEl = document.getElementById("weeklyLimit");
     const todayDateEl = document.getElementById("todayDate");
 
-    // ---- LIMITAI ----
-    const WEEKLY_LIMIT = 100;   // kiek nuotraukų leidžiama per savaitę
-    const MAX_PER_BATCH = 30;   // max vienu upload (apsauga nuo spam)
+    const WEEKLY_LIMIT = 100;
+    const MAX_PER_BATCH = 30;
 
-    // originalas gali būti labai didelis – mes tik perskaitysim ir sumažinsim
-    const MAX_ORIGINAL_SIZE = 100 * 1024 * 1024; // teorinis limitas (100 MB)
-
-    // AI analizei darom nedidelę kopiją – kokybė nebesvarbi, svarbu kad atpažintų objektus
-    const MAX_DIMENSION = 2048;  // ilgiausia kraštinė ~2048px
-    const JPEG_QUALITY = 0.65;   // stipresnė kompresija
+    // AI kopijos parametrai – labai maža, kad tilptų į limitus
+    const MAX_DIMENSION = 1024; // max kraštinė 1024 px
+    const JPEG_QUALITY = 0.5;   // gana stipri kompresija
 
     weeklyLimitEl.textContent = WEEKLY_LIMIT;
 
-    // šiandienos data tik informacijos dėlei
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, "0");
     const dd = String(today.getDate()).padStart(2, "0");
     todayDateEl.textContent = `${yyyy}-${mm}-${dd}`;
 
-    // ---- WEEK KEY (savaitės identifikatorius) ----
     function getWeekKey() {
       const d = new Date();
       const oneJan = new Date(d.getFullYear(), 0, 1);
@@ -168,7 +161,7 @@
       previewEl.textContent = "";
     });
 
-    // ---- Sumažinam ir konvertuojam į JPEG Base64 AI analizei ----
+    // sumažinam ir konvertuojam į JPEG Base64
     function fileToCompressedBase64(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -177,7 +170,6 @@
           img.onload = () => {
             let { width, height } = img;
 
-            // sumažinam didelius, kad ilgiausia kraštinė būtų MAX_DIMENSION
             const maxSide = Math.max(width, height);
             if (maxSide > MAX_DIMENSION) {
               const scale = MAX_DIMENSION / maxSide;
@@ -191,7 +183,6 @@
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, width, height);
 
-            // visada darom JPEG – AI nebereikia pilnos kokybės
             const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
             const base64 = dataUrl.split(",")[1];
             resolve(base64);
@@ -228,14 +219,12 @@
       const files = Array.from(fileInput.files);
       if (!files.length) return;
 
-      // max kiek leidžiam vienu kartu
       if (files.length > MAX_PER_BATCH) {
         alert(`Too many images at once. Max per batch: ${MAX_PER_BATCH}.`);
         return;
       }
 
-      // savaitinis limitas
-      usage = loadUsage(); // jei kitas tabas jau naudojo
+      usage = loadUsage();
       const remaining = WEEKLY_LIMIT - usage.used;
       if (remaining <= 0) {
         alert("Weekly limit reached. Please wait until next week.");
@@ -274,7 +263,6 @@
             `"${safeFilename}","${safeKeywords}","${title}",${category},"${releases}"`
           );
 
-          // atnaujinam weekly count
           usage.used += 1;
           saveUsage(usage);
           updateUsageUI(usage);
