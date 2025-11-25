@@ -247,7 +247,7 @@
       previewEl.textContent = "";
 
       const rows = [];
-      rows.push(["Filename", "Keywords", "Title", "Category", "Releases"].join(","));
+     rows.push(["Filename", "Title", "Keywords", "Category", "Releases"].join(","));
 
       let processed = 0;
       for (const file of files) {
@@ -262,8 +262,9 @@
           const releases = "";
           const safeFilename = file.name.replace(/"/g, '""');
 
-          rows.push(
-            `"${safeFilename}","${safeKeywords}","${title}",${category},"${releases}"`
+      rows.push(
+  `"${safeFilename}","${title}","${safeKeywords}",${category},"${releases}"`
+);
           );
 
           usage.used += 1;
@@ -297,3 +298,4 @@
   </script>
 </body>
 </html>
+
