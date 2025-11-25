@@ -104,198 +104,207 @@
 
   <div class="floating-love">MYLIU TAVE BUČIUKAS 💋</div>
 
-  <script>
-    const fileInput = document.getElementById("fileInput");
-    const generateBtn = document.getElementById("generateBtn");
-    const statusEl = document.getElementById("status");
-    const previewEl = document.getElementById("preview");
-    const remainingEl = document.getElementById("remainingCount");
-    const weeklyLimitEl = document.getElementById("weeklyLimit");
-    const todayDateEl = document.getElementById("todayDate");
+ <script>
+const fileInput = document.getElementById("fileInput");
+const generateBtn = document.getElementById("generateBtn");
+const statusEl = document.getElementById("status");
+const previewEl = document.getElementById("preview");
+const remainingEl = document.getElementById("remainingCount");
+const weeklyLimitEl = document.getElementById("weeklyLimit");
+const todayDateEl = document.getElementById("todayDate");
 
-    const WEEKLY_LIMIT = 100;
-    const MAX_PER_BATCH = 30;
+const WEEKLY_LIMIT = 100;
+const MAX_PER_BATCH = 30;
 
-    const MAX_DIMENSION = 1024; // max kraštinė 1024 px
-    const JPEG_QUALITY = 0.35;  // stipresnė kompresija
+const MAX_DIMENSION = 1024; // max kraštinė 1024 px
+const JPEG_QUALITY = 0.35;  // stipresnė kompresija
 
-    weeklyLimitEl.textContent = WEEKLY_LIMIT;
+weeklyLimitEl.textContent = WEEKLY_LIMIT;
 
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    todayDateEl.textContent = `${yyyy}-${mm}-${dd}`;
+const today = new Date();
+const yyyy = today.getFullYear();
+const mm = String(today.getMonth() + 1).padStart(2, "0");
+const dd = String(today.getDate()).padStart(2, "0");
+todayDateEl.textContent = `${yyyy}-${mm}-${dd}`;
 
-    function getWeekKey() {
-      const d = new Date();
-      const oneJan = new Date(d.getFullYear(), 0, 1);
-      const dayOfYear = Math.floor((d - oneJan) / 86400000) + 1;
-      const week = Math.ceil(dayOfYear / 7);
-      return `${d.getFullYear()}-W${week}`;
-    }
+function getWeekKey() {
+  const d = new Date();
+  const oneJan = new Date(d.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((d - oneJan) / 86400000) + 1;
+  const week = Math.ceil(dayOfYear / 7);
+  return `${d.getFullYear()}-W${week}`;
+}
 
-    function loadUsage() {
-      const key = getWeekKey();
-      const saved = JSON.parse(localStorage.getItem("aiCsvUsageWeek") || "{}");
-      if (saved.week !== key) {
-        return { week: key, used: 0 };
-      }
-      return saved;
-    }
+function loadUsage() {
+  const key = getWeekKey();
+  const saved = JSON.parse(localStorage.getItem("aiCsvUsageWeek") || "{}");
+  if (saved.week !== key) {
+    return { week: key, used: 0 };
+  }
+  return saved;
+}
 
-    function saveUsage(usage) {
-      localStorage.setItem("aiCsvUsageWeek", JSON.stringify(usage));
-    }
+function saveUsage(usage) {
+  localStorage.setItem("aiCsvUsageWeek", JSON.stringify(usage));
+}
 
-    function updateUsageUI(usage) {
-      const remaining = Math.max(WEEKLY_LIMIT - usage.used, 0);
-      remainingEl.textContent = remaining;
-    }
+function updateUsageUI(usage) {
+  const remaining = Math.max(WEEKLY_LIMIT - usage.used, 0);
+  remainingEl.textContent = remaining;
+}
 
-    let usage = loadUsage();
-    updateUsageUI(usage);
+let usage = loadUsage();
+updateUsageUI(usage);
 
-    fileInput.addEventListener("change", () => {
-      const count = fileInput.files.length;
-      generateBtn.disabled = count === 0;
-      statusEl.textContent = count ? `${count} files selected` : "";
-      previewEl.textContent = "";
-    });
+fileInput.addEventListener("change", () => {
+  const count = fileInput.files.length;
+  generateBtn.disabled = count === 0;
+  statusEl.textContent = count ? `${count} files selected` : "";
+  previewEl.textContent = "";
+});
 
-    function fileToCompressedBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const img = new Image();
-          img.onload = () => {
-            let { width, height } = img;
-            const maxSide = Math.max(width, height);
-            if (maxSide > MAX_DIMENSION) {
-              const scale = MAX_DIMENSION / maxSide;
-              width = Math.round(width * scale);
-              height = Math.round(height * scale);
-            }
-            const canvas = document.createElement("canvas");
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0, width, height);
-            const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
-            const base64 = dataUrl.split(",")[1];
-            resolve(base64);
-          };
-          img.onerror = () => reject(new Error("Image load error"));
-          img.src = reader.result;
-        };
-        reader.onerror = () => reject(new Error("File read error"));
-        reader.readAsDataURL(file);
-      });
-    }
-
-    async function analyzeImageWithAI(file) {
-      const base64 = await fileToCompressedBase64(file);
-
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageBase64: base64,
-          filename: file.name,
-        }),
-      });
-
-      if (!response.ok) {
-        let errJson = {};
-        try {
-          errJson = await response.json();
-        } catch (e) {}
-        throw new Error(
-          errJson.details ||
-          errJson.error ||
-          `Request failed (${response.status} ${response.statusText})`
-        );
-      }
-
-      return response.json();
-    }
-
-    generateBtn.addEventListener("click", async () => {
-      const files = Array.from(fileInput.files);
-      if (!files.length) return;
-
-      if (files.length > MAX_PER_BATCH) {
-        alert(`Too many images at once. Max per batch: ${MAX_PER_BATCH}.`);
-        return;
-      }
-
-      usage = loadUsage();
-      const remaining = WEEKLY_LIMIT - usage.used;
-      if (remaining <= 0) {
-        alert("Weekly limit reached. Please wait until next week.");
-        return;
-      }
-      if (files.length > remaining) {
-        alert(
-          `You have only ${remaining} images left for this week.\nPlease reduce the number of images.`
-        );
-        return;
-      }
-
-      generateBtn.disabled = true;
-      statusEl.textContent = "Sending images to AI...";
-      previewEl.textContent = "";
-
-      const rows = [];
-     rows.push(["Filename", "Title", "Keywords", "Category", "Releases"].join(","));
-
-      let processed = 0;
-      for (const file of files) {
-        try {
-          statusEl.textContent = `Analyzing ${file.name} (${++processed}/${files.length})...`;
-
-          const meta = await analyzeImageWithAI(file);
-          const title = (meta.title || "").replace(/"/g, '""');
-          const keywords = Array.isArray(meta.keywords) ? meta.keywords.join(", ") : "";
-          const safeKeywords = keywords.replace(/"/g, '""');
-          const category = meta.category || 12;
-          const releases = "";
-          const safeFilename = file.name.replace(/"/g, '""');
-
-      rows.push(
-  `"${safeFilename}","${title}","${safeKeywords}",${category},"${releases}"`
-);
-          );
-
-          usage.used += 1;
-          saveUsage(usage);
-          updateUsageUI(usage);
-        } catch (err) {
-          console.error(err);
-          rows.push(
-            `"${file.name.replace(/"/g, '""')}","","ERROR: ${String(
-              err.message || err
-            ).replace(/"/g, '""')}",12,""`
-          );
+function fileToCompressedBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        const maxSide = Math.max(width, height);
+        if (maxSide > MAX_DIMENSION) {
+          const scale = MAX_DIMENSION / maxSide;
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
         }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+        const base64 = dataUrl.split(",")[1];
+        resolve(base64);
+      };
+      img.onerror = () => reject(new Error("Image load error"));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error("File read error"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function analyzeImageWithAI(file) {
+  const base64 = await fileToCompressedBase64(file);
+
+  const response = await fetch("/api/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      imageBase64: base64,
+      filename: file.name,
+    }),
+  });
+
+  if (!response.ok) {
+    let errJson = {};
+    try {
+      errJson = await response.json();
+    } catch (e) {}
+    throw new Error(
+      errJson.details ||
+      errJson.error ||
+      `Request failed (${response.status} ${response.statusText})`
+    );
+  }
+
+  return response.json();
+}
+
+generateBtn.addEventListener("click", async () => {
+  const files = Array.from(fileInput.files);
+  if (!files.length) return;
+
+  if (files.length > MAX_PER_BATCH) {
+    alert(`Too many images at once. Max per batch: ${MAX_PER_BATCH}.`);
+    return;
+  }
+
+  usage = loadUsage();
+  const remaining = WEEKLY_LIMIT - usage.used;
+  if (remaining <= 0) {
+    alert("Weekly limit reached. Please wait until next week.");
+    return;
+  }
+  if (files.length > remaining) {
+    alert(
+      `You have only ${remaining} images left for this week.\nPlease reduce the number of images.`
+    );
+    return;
+  }
+
+  generateBtn.disabled = true;
+
+  try {
+    statusEl.textContent = "Sending images to AI...";
+    previewEl.textContent = "";
+
+    const rows = [];
+    // Adobe formatas: Filename, Title, Keywords, Category, Releases
+    rows.push(["Filename", "Title", "Keywords", "Category", "Releases"].join(","));
+
+    let processed = 0;
+    for (const file of files) {
+      try {
+        statusEl.textContent = `Analyzing ${file.name} (${++processed}/${files.length})...`;
+
+        const meta = await analyzeImageWithAI(file);
+        const title = (meta.title || "").replace(/"/g, '""');
+        const keywords = Array.isArray(meta.keywords) ? meta.keywords.join(", ") : "";
+        const safeKeywords = keywords.replace(/"/g, '""');
+        const category = meta.category || 12;
+        const releases = "";
+        const safeFilename = file.name.replace(/"/g, '""');
+
+        rows.push(
+          `"${safeFilename}","${title}","${safeKeywords}",${category},"${releases}"`
+        );
+
+        usage.used += 1;
+        saveUsage(usage);
+        updateUsageUI(usage);
+      } catch (err) {
+        console.error(err);
+        rows.push(
+          `"${file.name.replace(/"/g, '""')}","","ERROR: ${String(
+            err.message || err
+          ).replace(/"/g, '""')}",12,""`
+        );
       }
+    }
 
-      const csvContent = rows.join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "output.csv";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    const csvContent = rows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "output.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-      statusEl.textContent = `✅ Done! Generated ${files.length} rows.`;
-      previewEl.textContent = rows.slice(0, 10).join("\n");
-      generateBtn.disabled = false;
-    });
-  </script>
+    statusEl.textContent = `✅ Done! Generated ${files.length} rows.`;
+    previewEl.textContent = rows.slice(0, 10).join("\n");
+  } catch (err) {
+    console.error("Unexpected error in generation:", err);
+    statusEl.textContent = "❌ Unexpected error: " + (err.message || err);
+  } finally {
+    // visada atrakinam mygtuką, net jei kažkur nulūžo
+    generateBtn.disabled = false;
+  }
+});
+</script>
 </body>
 </html>
+
 
