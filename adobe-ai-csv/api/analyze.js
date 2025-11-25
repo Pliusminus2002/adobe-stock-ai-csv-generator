@@ -1,9 +1,3 @@
-import OpenAI from "openai";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // API raktas saugiai iš env
-});
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.statusCode = 405;
@@ -13,18 +7,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ---- NUSKAITOM JSON BODY RANKA ----
+    // --- body nuskaitymas ---
     let body = "";
     for await (const chunk of req) {
       body += chunk;
     }
-
     const { imageBase64, filename } = JSON.parse(body || "{}");
 
     if (!imageBase64) {
       res.statusCode = 400;
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ error: "Missing imageBase64" }));
+      return;
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      res.statusCode = 500;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: "Missing OPENAI_API_KEY on server" }));
       return;
     }
 
@@ -71,7 +72,7 @@ If the filename gives useful hints, you can use it too.
 Filename: ${filename || "unknown"}
     `.trim();
 
-    const completion = await openai.chat.completions.create({
+    const payload = {
       model: "gpt-4.1-mini",
       messages: [
         {
@@ -92,11 +93,27 @@ Filename: ${filename || "unknown"}
           ],
         },
       ],
-      temperature: 0.4,
       max_tokens: 400,
+      temperature: 0.4,
+    };
+
+    // --- kviečiam OpenAI per fetch ---
+    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
     });
 
-    const raw = completion.choices?.[0]?.message?.content?.trim();
+    if (!openaiRes.ok) {
+      const text = await openaiRes.text();
+      throw new Error(`OpenAI API error: ${openaiRes.status} ${text}`);
+    }
+
+    const data = await openaiRes.json();
+    const raw = data.choices?.[0]?.message?.content?.trim();
     if (!raw) {
       throw new Error("Empty response from OpenAI");
     }
