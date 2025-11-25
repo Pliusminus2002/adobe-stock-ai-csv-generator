@@ -1,3 +1,6 @@
+// api/analyze.js
+// Vercel serverless funkcija, kuri kviečia OpenAI Responses API su vizija
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.statusCode = 405;
@@ -7,17 +10,41 @@ export default async function handler(req, res) {
   }
 
   try {
-    // --- body nuskaitymas ---
+    // --- body nuskaitymas iš stream'o ---
     let body = "";
     for await (const chunk of req) {
       body += chunk;
     }
-    const { imageBase64, filename } = JSON.parse(body || "{}");
+
+    let parsed;
+    try {
+      parsed = JSON.parse(body || "{}");
+    } catch (e) {
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: "Invalid JSON body" }));
+      return;
+    }
+
+    const { imageBase64, filename } = parsed;
 
     if (!imageBase64) {
       res.statusCode = 400;
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ error: "Missing imageBase64" }));
+      return;
+    }
+
+    // Paprastas dydžio check: labai dideli vaizdai -> graži klaida
+    if (imageBase64.length > 12 * 1024 * 1024) { // ~12MB base64 string
+      res.statusCode = 413;
+      res.setHeader("Content-Type", "application/json");
+      res.end(
+        JSON.stringify({
+          error: "Image too large",
+          details: "Please upload images under ~8MB each."
+        })
+      );
       return;
     }
 
@@ -33,8 +60,8 @@ export default async function handler(req, res) {
 You are an expert Adobe Stock contributor assistant.
 
 Look at the image and create metadata for Adobe Stock CSV:
-- "title": short, natural English title, max 70 characters, no hashtags, no quotes.
-- "keywords": 30–50 keywords in English, array of strings, most important first, no duplicates.
+- "title": short, natural English title, max 70 characters, no hashtags, no quotes, no emojis.
+- "keywords": 30–50 keywords in English, array of strings, most important first, no duplicates, no emojis.
 - "category": integer 1–21 according to Adobe Stock categories:
   1 Animals
   2 Buildings and Architecture
@@ -58,13 +85,12 @@ Look at the image and create metadata for Adobe Stock CSV:
   20 Transport
   21 Travel
 
-Rules:
-- Answer ONLY a JSON object, nothing else.
-- JSON shape:
+Return ONLY valid JSON, nothing else.
+JSON shape:
 
 {
   "title": "string",
-  "keywords": ["string", ...],
+  "keywords": ["string", "..."],
   "category": 1
 }
 
@@ -72,66 +98,106 @@ If the filename gives useful hints, you can use it too.
 Filename: ${filename || "unknown"}
     `.trim();
 
+    // --- OpenAI Responses API payload ---
     const payload = {
       model: "gpt-4.1-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a strict JSON generator. Always respond with a single valid JSON object, no extra text.",
-        },
+      input: [
         {
           role: "user",
           content: [
-            { type: "text", text: prompt },
             {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`,
-              },
+              type: "input_text",
+              text: prompt
             },
-          ],
-        },
+            {
+              type: "input_image",
+              image_url: {
+                url: data:image/jpeg;base64,${imageBase64}
+              }
+            }
+          ]
+        }
       ],
-      max_tokens: 400,
-      temperature: 0.4,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "stock_meta",
+          schema: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              keywords: {
+                type: "array",
+                items: { type: "string" }
+              },
+              category: { type: "integer" }
+            },
+            required: ["title", "keywords", "category"],
+            additionalProperties: false
+          }
+        }
+      },
+      max_output_tokens: 400
     };
 
-    // --- kviečiam OpenAI per fetch ---
-    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    const openaiRes = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: Bearer ${apiKey}
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(payload)
     });
 
     if (!openaiRes.ok) {
-      const text = await openaiRes.text();
-      throw new Error(`OpenAI API error: ${openaiRes.status} ${text}`);
+      const text = await openaiRes.text().catch(() => "");
+      console.error("OpenAI API error:", openaiRes.status, text);
+      throw new Error(OpenAI API error: ${openaiRes.status} ${text});
     }
 
     const data = await openaiRes.json();
-    const raw = data.choices?.[0]?.message?.content?.trim();
+
+    // Responses API turi output[] ir patogų output_text.
+    let raw = "";
+    if (data.output_text) {
+      raw = data.output_text;
+    } else if (
+      Array.isArray(data.output) &&
+      data.output[0]?.content?.[0]?.text
+    ) {
+      raw = data.output[0].content[0].text;
+    }
+
+    raw = (raw || "").trim();
     if (!raw) {
       throw new Error("Empty response from OpenAI");
     }
 
-    let parsed;
+    let parsedJson;
     try {
-      parsed = JSON.parse(raw);
+      parsedJson = JSON.parse(raw);
     } catch (e) {
       console.error("JSON parse error, raw:", raw);
       throw new Error("Failed to parse JSON from OpenAI");
     }
 
-    const title = String(parsed.title || "").slice(0, 70);
-    const keywordsArray = Array.isArray(parsed.keywords)
-      ? parsed.keywords.map((k) => String(k)).slice(0, 50)
+    // Sutvarkom ir “apsaugom” laukus
+    let title = (parsedJson.title || "").toString().trim();
+    if (!title) title = "AI generated image";
+    if (title.length > 70) title = title.slice(0, 70);
+
+    let keywordsArray = Array.isArray(parsedJson.keywords)
+      ? parsedJson.keywords.map((k) => String(k).toLowerCase().trim())
       : [];
-    const category =
-      typeof parsed.category === "number" ? parsed.category : 12;
+    keywordsArray = keywordsArray
+      .filter(Boolean)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .slice(0, 50);
+
+    let category = parseInt(parsedJson.category, 10);
+    if (!Number.isInteger(category) || category < 1 || category > 21) {
+      category = 13; // People kaip default
+    }
 
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json");
@@ -139,17 +205,17 @@ Filename: ${filename || "unknown"}
       JSON.stringify({
         title,
         keywords: keywordsArray,
-        category,
+        category
       })
     );
   } catch (err) {
-    console.error(err);
+    console.error("AI analysis failed:", err);
     res.statusCode = 500;
     res.setHeader("Content-Type", "application/json");
     res.end(
       JSON.stringify({
         error: "AI analysis failed",
-        details: err.message || String(err),
+        details: err.message || String(err)
       })
     );
   }
