@@ -115,6 +115,13 @@
     const WEEKLY_LIMIT = 100;   // kiek nuotraukų leidžiama per savaitę
     const MAX_PER_BATCH = 30;   // max vienu upload (apsauga nuo spam)
 
+    // originalas gali būti labai didelis – mes tik perskaitysim ir sumažinsim
+    const MAX_ORIGINAL_SIZE = 100 * 1024 * 1024; // teorinis limitas (100 MB)
+
+    // AI analizei darom nedidelę kopiją – kokybė nebesvarbi, svarbu kad atpažintų objektus
+    const MAX_DIMENSION = 2048;  // ilgiausia kraštinė ~2048px
+    const JPEG_QUALITY = 0.65;   // stipresnė kompresija
+
     weeklyLimitEl.textContent = WEEKLY_LIMIT;
 
     // šiandienos data tik informacijos dėlei
@@ -161,21 +168,44 @@
       previewEl.textContent = "";
     });
 
-    function fileToBase64(file) {
+    // ---- Sumažinam ir konvertuojam į JPEG Base64 AI analizei ----
+    function fileToCompressedBase64(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
-          const result = reader.result; // data:image/xxx;base64,xxxx
-          const base64 = result.split(",")[1];
-          resolve(base64);
+          const img = new Image();
+          img.onload = () => {
+            let { width, height } = img;
+
+            // sumažinam didelius, kad ilgiausia kraštinė būtų MAX_DIMENSION
+            const maxSide = Math.max(width, height);
+            if (maxSide > MAX_DIMENSION) {
+              const scale = MAX_DIMENSION / maxSide;
+              width = Math.round(width * scale);
+              height = Math.round(height * scale);
+            }
+
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // visada darom JPEG – AI nebereikia pilnos kokybės
+            const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+            const base64 = dataUrl.split(",")[1];
+            resolve(base64);
+          };
+          img.onerror = () => reject(new Error("Image load error"));
+          img.src = reader.result;
         };
-        reader.onerror = reject;
+        reader.onerror = () => reject(new Error("File read error"));
         reader.readAsDataURL(file);
       });
     }
 
     async function analyzeImageWithAI(file) {
-      const base64 = await fileToBase64(file);
+      const base64 = await fileToCompressedBase64(file);
 
       const response = await fetch("/api/analyze", {
         method: "POST",
