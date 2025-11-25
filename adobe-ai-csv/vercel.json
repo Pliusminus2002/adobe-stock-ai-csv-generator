@@ -1,9 +1,0 @@
-{
-  "functions": {
-    "api/*.js": {
-      "maxDuration": 20,
-      "memory": 512,
-      "maxRequestSize": "10mb"
-    }
-  }
-}
