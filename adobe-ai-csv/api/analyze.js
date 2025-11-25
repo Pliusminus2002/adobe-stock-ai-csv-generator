@@ -110,10 +110,10 @@ Filename: ${filename || "unknown"}
               text: prompt
             },
             {
-              type: "input_image",
-              image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`
-              }
+  type: "input_image",
+ image_url: `data:image/jpeg;base64,${imageBase64}`
+
+    }
             }
           ]
         }
@@ -200,3 +200,4 @@ Filename: ${filename || "unknown"}
     );
   }
 }
+
