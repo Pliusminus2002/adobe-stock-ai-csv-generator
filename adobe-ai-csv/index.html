@@ -125,14 +125,14 @@
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, "0");
     const dd = String(today.getDate()).padStart(2, "0");
-    todayDateEl.textContent = ${yyyy}-${mm}-${dd};
+    todayDateEl.textContent = `${yyyy}-${mm}-${dd}`;
 
     function getWeekKey() {
       const d = new Date();
       const oneJan = new Date(d.getFullYear(), 0, 1);
       const dayOfYear = Math.floor((d - oneJan) / 86400000) + 1;
       const week = Math.ceil(dayOfYear / 7);
-      return ${d.getFullYear()}-W${week};
+      return `${d.getFullYear()}-W${week}`;
     }
 
     function loadUsage() {
@@ -159,7 +159,7 @@
     fileInput.addEventListener("change", () => {
       const count = fileInput.files.length;
       generateBtn.disabled = count === 0;
-      statusEl.textContent = count ? ${count} files selected : "";
+      statusEl.textContent = count ? `${count} files selected` : "";
       previewEl.textContent = "";
     });
 
@@ -218,7 +218,7 @@
       if (!files.length) return;
 
       if (files.length > MAX_PER_BATCH) {
-        alert(Too many images at once. Max per batch: ${MAX_PER_BATCH}.);
+        alert(`Too many images at once. Max per batch: ${MAX_PER_BATCH}.`);
         return;
       }
 
@@ -230,8 +230,7 @@
       }
       if (files.length > remaining) {
         alert(
-          You have only ${remaining} images left for this week.\n +
-          Please reduce the number of images.
+          `You have only ${remaining} images left for this week.\nPlease reduce the number of images.`
         );
         return;
       }
@@ -246,7 +245,7 @@
       let processed = 0;
       for (const file of files) {
         try {
-          statusEl.textContent = Analyzing ${file.name} (${++processed}/${files.length})...;
+          statusEl.textContent = `Analyzing ${file.name} (${++processed}/${files.length})...`;
 
           const meta = await analyzeImageWithAI(file);
           const title = (meta.title || "").replace(/"/g, '""');
@@ -257,7 +256,7 @@
           const safeFilename = file.name.replace(/"/g, '""');
 
           rows.push(
-            "${safeFilename}","${safeKeywords}","${title}",${category},"${releases}"
+            `"${safeFilename}","${safeKeywords}","${title}",${category},"${releases}"`
           );
 
           usage.used += 1;
@@ -284,11 +283,10 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      statusEl.textContent = ✅ Done! Generated ${files.length} rows.;
-      previewEl.textContent = rows.slice(0, 😎.join("\n");
+      statusEl.textContent = `✅ Done! Generated ${files.length} rows.`;
+      previewEl.textContent = rows.slice(0, 10).join("\n");
       generateBtn.disabled = false;
     });
   </script>
 </body>
 </html>
-
