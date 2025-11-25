@@ -1,21 +1,30 @@
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // API raktas bus aplinkos kintamajame, NE kode
+  apiKey: process.env.OPENAI_API_KEY, // API raktas saugiai iš env
 });
 
-// Čia funkcija, kuri priima POST su base64 nuotrauka ir grąžina title/keywords/category
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    res.status(405).json({ error: "Only POST allowed" });
+    res.statusCode = 405;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ error: "Only POST allowed" }));
     return;
   }
 
   try {
-    const { imageBase64, filename } = req.body || {};
+    // ---- NUSKAITOM JSON BODY RANKA ----
+    let body = "";
+    for await (const chunk of req) {
+      body += chunk;
+    }
+
+    const { imageBase64, filename } = JSON.parse(body || "{}");
 
     if (!imageBase64) {
-      res.status(400).json({ error: "Missing imageBase64" });
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: "Missing imageBase64" }));
       return;
     }
 
@@ -73,14 +82,10 @@ Filename: ${filename || "unknown"}
         {
           role: "user",
           content: [
-            {
-              type: "text",
-              text: prompt,
-            },
+            { type: "text", text: prompt },
             {
               type: "image_url",
               image_url: {
-                // čia pridedam prefixą prie base64
                 url: `data:image/jpeg;base64,${imageBase64}`,
               },
             },
@@ -100,29 +105,35 @@ Filename: ${filename || "unknown"}
     try {
       parsed = JSON.parse(raw);
     } catch (e) {
-      // jei dėl kokios nors priežasties JSON sugadina – bandysim „pamėtyti“ kabutes ir pan.
       console.error("JSON parse error, raw:", raw);
       throw new Error("Failed to parse JSON from OpenAI");
     }
 
-    // šiek tiek sutvarkom duomenis
     const title = String(parsed.title || "").slice(0, 70);
     const keywordsArray = Array.isArray(parsed.keywords)
       ? parsed.keywords.map((k) => String(k)).slice(0, 50)
       : [];
     const category =
-      typeof parsed.category === "number" ? parsed.category : 12; // default Lifestyle
+      typeof parsed.category === "number" ? parsed.category : 12;
 
-    res.status(200).json({
-      title,
-      keywords: keywordsArray,
-      category,
-    });
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({
+        title,
+        keywords: keywordsArray,
+        category,
+      })
+    );
   } catch (err) {
     console.error(err);
-    res.status(500).json({
-      error: "AI analysis failed",
-      details: err.message || String(err),
-    });
+    res.statusCode = 500;
+    res.setHeader("Content-Type", "application/json");
+    res.end(
+      JSON.stringify({
+        error: "AI analysis failed",
+        details: err.message || String(err),
+      })
+    );
   }
 }
