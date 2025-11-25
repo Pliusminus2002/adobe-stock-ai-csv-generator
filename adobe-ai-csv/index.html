@@ -83,8 +83,15 @@
 <body>
   <div class="card">
     <h2>Adobe Stock AI CSV generator</h2>
-    <p>1. Pasirink savo AI nuotraukas (iki 1000).</p>
+    <p>1. Pasirink savo AI nuotraukas (rekomenduojama iki 30 vienu kartu, iki 100 per savaitę).</p>
     <p>2. Spaudi „Generate CSV“ – gausi <b>output.csv</b>, kur Title/Keywords/Category padaro AI pagal pačią nuotrauką.</p>
+
+    <!-- Rodom savaitinį limitą ir šiandienos datą -->
+    <div id="usageBar" style="font-size: 13px; color: #9ca3af; margin-bottom: 8px;">
+      Weekly limit: <span id="weeklyLimit">100</span> images •
+      Left this week: <span id="remainingCount">100</span> •
+      Today: <span id="todayDate"></span>
+    </div>
 
     <input type="file" id="fileInput" multiple accept="image/*" />
     <button id="generateBtn" disabled>Generate CSV with AI</button>
@@ -100,6 +107,52 @@
     const generateBtn = document.getElementById("generateBtn");
     const statusEl = document.getElementById("status");
     const previewEl = document.getElementById("preview");
+    const remainingEl = document.getElementById("remainingCount");
+    const weeklyLimitEl = document.getElementById("weeklyLimit");
+    const todayDateEl = document.getElementById("todayDate");
+
+    // ---- LIMITAI ----
+    const WEEKLY_LIMIT = 100;   // kiek nuotraukų leidžiama per savaitę
+    const MAX_PER_BATCH = 30;   // max vienu upload (apsauga nuo spam)
+
+    weeklyLimitEl.textContent = WEEKLY_LIMIT;
+
+    // šiandienos data tik informacijos dėlei
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    todayDateEl.textContent = `${yyyy}-${mm}-${dd}`;
+
+    // ---- WEEK KEY (savaitės identifikatorius) ----
+    function getWeekKey() {
+      const d = new Date();
+      const oneJan = new Date(d.getFullYear(), 0, 1);
+      const dayOfYear = Math.floor((d - oneJan) / 86400000) + 1;
+      const week = Math.ceil(dayOfYear / 7);
+      return `${d.getFullYear()}-W${week}`;
+    }
+
+    function loadUsage() {
+      const key = getWeekKey();
+      const saved = JSON.parse(localStorage.getItem("aiCsvUsageWeek") || "{}");
+      if (saved.week !== key) {
+        return { week: key, used: 0 };
+      }
+      return saved;
+    }
+
+    function saveUsage(usage) {
+      localStorage.setItem("aiCsvUsageWeek", JSON.stringify(usage));
+    }
+
+    function updateUsageUI(usage) {
+      const remaining = Math.max(WEEKLY_LIMIT - usage.used, 0);
+      remainingEl.textContent = remaining;
+    }
+
+    let usage = loadUsage();
+    updateUsageUI(usage);
 
     fileInput.addEventListener("change", () => {
       const count = fileInput.files.length;
@@ -145,6 +198,27 @@
       const files = Array.from(fileInput.files);
       if (!files.length) return;
 
+      // max kiek leidžiam vienu kartu
+      if (files.length > MAX_PER_BATCH) {
+        alert(`Too many images at once. Max per batch: ${MAX_PER_BATCH}.`);
+        return;
+      }
+
+      // savaitinis limitas
+      usage = loadUsage(); // jei kitas tabas jau naudojo
+      const remaining = WEEKLY_LIMIT - usage.used;
+      if (remaining <= 0) {
+        alert("Weekly limit reached. Please wait until next week.");
+        return;
+      }
+      if (files.length > remaining) {
+        alert(
+          `You have only ${remaining} images left for this week.\n` +
+          `Please reduce the number of images.`
+        );
+        return;
+      }
+
       generateBtn.disabled = true;
       statusEl.textContent = "Sending images to AI...";
       previewEl.textContent = "";
@@ -169,6 +243,11 @@
           rows.push(
             `"${safeFilename}","${safeKeywords}","${title}",${category},"${releases}"`
           );
+
+          // atnaujinam weekly count
+          usage.used += 1;
+          saveUsage(usage);
+          updateUsageUI(usage);
         } catch (err) {
           console.error(err);
           rows.push(
