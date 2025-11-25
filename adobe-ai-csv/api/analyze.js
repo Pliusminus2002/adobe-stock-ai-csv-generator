@@ -1,7 +1,7 @@
 // api/analyze.js
-// Vercel serverless funkcija, kuri kviečia OpenAI Responses API su vizija
+// Vercel serverless funkcija, kuri kviečia OpenAI Responses API su vizija (CommonJS versija)
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.statusCode = 405;
     res.setHeader("Content-Type", "application/json");
@@ -217,4 +217,4 @@ Filename: ${filename || "unknown"}
       })
     );
   }
-}
+};
