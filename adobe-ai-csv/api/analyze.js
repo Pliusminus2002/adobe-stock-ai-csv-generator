@@ -57,12 +57,30 @@ export default async function handler(req, res) {
     }
 
     const prompt = `
-You are an expert Adobe Stock contributor assistant.
+You are a professional Adobe Stock top-seller metadata expert who knows how to optimize metadata for maximum search visibility and commercial sales.
 
-Look at the image and create metadata for Adobe Stock CSV:
-- "title": short, natural English title, max 70 characters, no hashtags, no quotes, no emojis.
-- "keywords": 30–50 keywords in English, array of strings, most important first, no duplicates, no emojis.
-- "category": integer 1–21 according to Adobe Stock categories:
+Analyze the provided image and generate Adobe Stock metadata optimized for sales, not just descriptive or artistic interpretation.
+
+Rules for the result:
+
+TITLE
+- Must improve search visibility.
+- Commercial, simple, literal, professional tone.
+- Max 70 characters.
+- No emojis, no hashtags, no quotes, no extra adjectives.
+
+KEYWORDS (30–49 total)
+- ORDER IS IMPORTANT: rank by commercial importance (most-demanded first).
+- Use search-intent keywords buyers actually search for on stock platforms.
+- Avoid synonyms that mean the same thing if they don't add distinct search value.
+- Avoid useless adjectives (e.g., "beautiful", "nice", "soft", "lovely").
+- Avoid personal names, unknown brands, subjective opinions.
+- Include a mix from broad to specific (e.g., “christmas”, “winter holiday”, “snowman decoration”).
+- Use lowercase English only.
+
+CATEGORY (1–21)
+Choose the category that buyers would most likely search for this image under (commercial usage intent):
+
   1 Animals
   2 Buildings and Architecture
   3 Business
@@ -85,8 +103,7 @@ Look at the image and create metadata for Adobe Stock CSV:
   20 Transport
   21 Travel
 
-Return ONLY valid JSON, nothing else.
-JSON shape:
+Return ONLY a pure JSON object with this exact shape, nothing else:
 
 {
   "title": "string",
@@ -94,7 +111,7 @@ JSON shape:
   "category": 1
 }
 
-If the filename gives useful hints, you can use it too.
+Use the filename only if it provides useful context.
 Filename: ${filename || "unknown"}
     `.trim();
 
@@ -161,7 +178,7 @@ Filename: ${filename || "unknown"}
     }
 
     let title = (parsedJson.title || "").toString().trim();
-    if (!title) title = "AI generated image";
+    if (!title) title = "ai generated image";
     if (title.length > 70) title = title.slice(0, 70);
 
     let keywordsArray = Array.isArray(parsedJson.keywords)
