@@ -116,7 +116,6 @@
     const WEEKLY_LIMIT = 100;
     const MAX_PER_BATCH = 30;
 
-    // AI kopijos parametrai – sumažinam, kad nebūtų 413
     const MAX_DIMENSION = 1024; // max kraštinė 1024 px
     const JPEG_QUALITY = 0.35;  // stipresnė kompresija
 
@@ -171,20 +170,17 @@
           const img = new Image();
           img.onload = () => {
             let { width, height } = img;
-
             const maxSide = Math.max(width, height);
             if (maxSide > MAX_DIMENSION) {
               const scale = MAX_DIMENSION / maxSide;
               width = Math.round(width * scale);
               height = Math.round(height * scale);
             }
-
             const canvas = document.createElement("canvas");
             canvas.width = width;
             canvas.height = height;
             const ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, width, height);
-
             const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
             const base64 = dataUrl.split(",")[1];
             resolve(base64);
@@ -258,7 +254,6 @@
           const safeKeywords = keywords.replace(/"/g, '""');
           const category = meta.category || 12;
           const releases = "";
-
           const safeFilename = file.name.replace(/"/g, '""');
 
           rows.push(
