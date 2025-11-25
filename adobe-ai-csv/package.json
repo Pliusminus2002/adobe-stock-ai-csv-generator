@@ -1,0 +1,11 @@
+{
+  "name": "adobe-ai-csv-generator",
+  "version": "1.0.0",
+  "description": "Generate Adobe Stock CSV with AI titles, keywords and categories.",
+  "scripts": {
+    "start": "echo 'Front-end only, no local server'"
+  },
+  "dependencies": {
+    "openai": "^4.0.0"
+  }
+}
