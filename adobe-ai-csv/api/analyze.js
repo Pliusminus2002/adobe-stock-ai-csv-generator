@@ -35,7 +35,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Paprastas dydžio check
+    // Paprastas dydžio check: labai dideli vaizdai -> graži klaida
     if (imageBase64.length > 12 * 1024 * 1024) {
       res.statusCode = 413;
       res.setHeader("Content-Type", "application/json");
@@ -98,6 +98,7 @@ If the filename gives useful hints, you can use it too.
 Filename: ${filename || "unknown"}
     `.trim();
 
+    // Responses API payload – be response_format, JSON parsinam patys
     const payload = {
       model: "gpt-4.1-mini",
       input: [
@@ -117,25 +118,6 @@ Filename: ${filename || "unknown"}
           ]
         }
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "stock_meta",
-          schema: {
-            type: "object",
-            properties: {
-              title: { type: "string" },
-              keywords: {
-                type: "array",
-                items: { type: "string" }
-              },
-              category: { type: "integer" }
-            },
-            required: ["title", "keywords", "category"],
-            additionalProperties: false
-          }
-        }
-      },
       max_output_tokens: 400
     };
 
@@ -156,7 +138,7 @@ Filename: ${filename || "unknown"}
 
     const apiData = await openaiRes.json();
 
-    // Responses API output extraction
+    // Responses API output extraction – bandome kelis variantus
     let raw = "";
     if (apiData.output_text) {
       raw = apiData.output_text;
