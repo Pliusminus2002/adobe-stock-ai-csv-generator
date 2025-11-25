@@ -1,6 +1,6 @@
 {
-  "type": "module",
-  "dependencies": {
-    "openai": "^4.73.0"
-  }
+  "name": "adobe-stock-ai-csv",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module"
 }
