@@ -1,9 +1,7 @@
 // api/analyze.js
-// Vercel serverless funkcija, kuri kviečia OpenAI Responses API su vizija (CommonJS versija)
+// Vercel serverless funkcija, kuri kviečia OpenAI Responses API su vizija (ESM versija)
 
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.statusCode = 405;
     res.setHeader("Content-Type", "application/json");
@@ -37,7 +35,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // Paprastas dydžio check: labai dideli vaizdai -> graži klaida
+    // Paprastas dydžio check
     if (imageBase64.length > 12 * 1024 * 1024) {
       res.statusCode = 413;
       res.setHeader("Content-Type", "application/json");
@@ -219,4 +217,4 @@ Filename: ${filename || "unknown"}
       })
     );
   }
-};
+}
