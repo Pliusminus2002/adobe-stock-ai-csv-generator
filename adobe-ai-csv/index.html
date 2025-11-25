@@ -206,8 +206,15 @@
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.details || err.error || "Request failed");
+        let errJson = {};
+        try {
+          errJson = await response.json();
+        } catch (e) {}
+        throw new Error(
+          errJson.details ||
+          errJson.error ||
+          `Request failed (${response.status} ${response.statusText})`
+        );
       }
 
       return response.json();
