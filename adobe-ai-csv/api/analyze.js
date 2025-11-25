@@ -1,6 +1,8 @@
 // api/analyze.js
 // Vercel serverless funkcija, kuri kviečia OpenAI Responses API su vizija (CommonJS versija)
 
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.statusCode = 405;
@@ -111,7 +113,7 @@ Filename: ${filename || "unknown"}
             {
               type: "input_image",
               image_url: {
-                url: data:image/jpeg;base64,${imageBase64}
+                url: `data:image/jpeg;base64,${imageBase64}`
               }
             }
           ]
@@ -143,7 +145,7 @@ Filename: ${filename || "unknown"}
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: Bearer ${apiKey}
+        "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify(payload)
     });
@@ -151,20 +153,20 @@ Filename: ${filename || "unknown"}
     if (!openaiRes.ok) {
       const text = await openaiRes.text().catch(() => "");
       console.error("OpenAI API error:", openaiRes.status, text);
-      throw new Error(OpenAI API error: ${openaiRes.status} ${text});
+      throw new Error(`OpenAI API error: ${openaiRes.status} ${text}`);
     }
 
-    const data = await openaiRes.json();
+    const apiData = await openaiRes.json();
 
     // Responses API output extraction
     let raw = "";
-    if (data.output_text) {
-      raw = data.output_text;
+    if (apiData.output_text) {
+      raw = apiData.output_text;
     } else if (
-      Array.isArray(data.output) &&
-      data.output[0]?.content?.[0]?.text
+      Array.isArray(apiData.output) &&
+      apiData.output[0]?.content?.[0]?.text
     ) {
-      raw = data.output[0].content[0].text;
+      raw = apiData.output[0].content[0].text;
     }
 
     raw = (raw || "").trim();
