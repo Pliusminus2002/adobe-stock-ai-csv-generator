@@ -169,9 +169,18 @@ Filename: ${filename || "unknown"}
       throw new Error("Empty response from OpenAI");
     }
 
+    // --- ROBUST JSON PARSING ---
     let parsedJson;
     try {
-      parsedJson = JSON.parse(raw);
+      // jei modelis prirašė "Here is the JSON:" ir pan. – išsikerpam tik { ... } dalį
+      const firstBrace = raw.indexOf("{");
+      const lastBrace = raw.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const jsonSlice = raw.slice(firstBrace, lastBrace + 1);
+        parsedJson = JSON.parse(jsonSlice);
+      } else {
+        throw new Error("No JSON object found in response");
+      }
     } catch (e) {
       console.error("JSON parse error, raw:", raw);
       throw new Error("Failed to parse JSON from OpenAI");
