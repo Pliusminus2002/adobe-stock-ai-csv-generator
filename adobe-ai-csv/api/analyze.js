@@ -1,6 +1,173 @@
 // api/analyze.js
 // Vercel serverless funkcija, kuri kviečia OpenAI Responses API su vizija (ESM versija)
 
+// Papildoma funkcija: nusprendžiam kategoriją pagal title + keywords
+function decideCategory(title, keywordsArray, aiCategory) {
+  const text = (title + " " + keywordsArray.join(" ")).toLowerCase();
+
+  // Helper, kad būtų patogiau tikrinti žodžius
+  const hasAny = (words) => words.some((w) => text.includes(w));
+
+  // 1 – Animals
+  if (hasAny([
+    "cat","dog","animal","animals","pet","pets","wildlife","lion","tiger","bird","birds",
+    "horse","fox","wolf","bear","owl","deer","rabbit","bunny","fish","shark","whale"
+  ])) {
+    return 1;
+  }
+
+  // 14 – Plants and Flowers (makro, augalai)
+  if (hasAny([
+    "flower","flowers","bloom","blossom","rose","tulip","sunflower","daisy","lavender",
+    "plant","plants","leaf","leaves","foliage","botanical","greenery"
+  ]) && !hasAny(["landscape","mountain","valley","panorama","wide view"])) {
+    return 14;
+  }
+
+  // 11 – Landscape (gamta, peizažai)
+  if (hasAny([
+    "landscape","mountain","mountains","hill","hills","valley","sky","clouds","sunset","sunrise",
+    "forest","woods","sea","ocean","lake","river","coast","beach","nature","scenery","outdoor","countryside","field","meadow","desert"
+  ])) {
+    return 11;
+  }
+
+  // 21 – Travel (vietovės, kelionės, žymios vietos)
+  if (hasAny([
+    "tourism","travel","destination","landmark","cityscape","skyline","old town","historic center",
+    "eiffel","colosseum","taj mahal","paris","rome","london","new york","nyc","tokyo"
+  ])) {
+    return 21;
+  }
+
+  // 2 – Buildings and Architecture
+  if (hasAny([
+    "architecture","building","buildings","facade","skyscraper","interior","exterior",
+    "church","cathedral","castle","bridge","street","city street","apartment","office building"
+  ]) && !hasAny(["travel","tourism","destination"])) {
+    return 2;
+  }
+
+  // 13 – People (kai žmonės aiškiai pagrindinis objektas)
+  if (hasAny([
+    "portrait","person","people","woman","man","girl","boy","child","children","kid","model",
+    "face","faces","couple","family","friends","selfie","smiling person","young woman","young man"
+  ])) {
+    return 13;
+  }
+
+  // 12 – Lifestyle (gyvenimo būdas, kasdienybė)
+  if (hasAny([
+    "lifestyle","at home","home interior","cozy","relaxing at home","daily life","everyday life",
+    "morning routine","evening routine","family time","weekend","home office","living room","kitchen scene"
+  ])) {
+    return 12;
+  }
+
+  // 3 – Business
+  if (hasAny([
+    "business","office","corporate","startup","meeting","teamwork","presentation","manager",
+    "finance","financial","marketing","strategy","charts","graph","analytics","coworking"
+  ])) {
+    return 3;
+  }
+
+  // 7 – Food
+  if (hasAny([
+    "food","meal","dish","cooking","recipe","kitchen","breakfast","lunch","dinner",
+    "pizza","burger","salad","pasta","dessert","cake","cookies","bread","baking","ingredients"
+  ])) {
+    return 7;
+  }
+
+  // 4 – Drinks
+  if (hasAny([
+    "coffee","tea","cocktail","beer","wine","drink","drinks","beverage","smoothie","juice","latte","cup","mug","glass of"
+  ])) {
+    return 4;
+  }
+
+  // 18 – Sports
+  if (hasAny([
+    "sport","sports","training","fitness","gym","workout","exercise",
+    "football","soccer","basketball","tennis","running","jogging","yoga"
+  ])) {
+    return 18;
+  }
+
+  // 19 – Technology
+  if (hasAny([
+    "technology","tech","laptop","computer","tablet","smartphone","phone","screen","monitor",
+    "server","data center","code","coding","programming","ai","artificial intelligence",
+    "neural network","digital","cyber","futuristic","vr","ar"
+  ])) {
+    return 19;
+  }
+
+  // 8 – Graphic Resources (pattern, background, abstract)
+  if (hasAny([
+    "pattern","seamless","background","texture","abstract","wallpaper","gradient","design element",
+    "template","frame","border","icon set","ui kit","infographic","mockup"
+  ])) {
+    return 8;
+  }
+
+  // 10 – Industry
+  if (hasAny([
+    "factory","industrial","industry","manufacturing","warehouse","construction site",
+    "worker in factory","power plant","heavy machinery","production line"
+  ])) {
+    return 10;
+  }
+
+  // 5 – The Environment
+  if (hasAny([
+    "pollution","smog","trash","garbage","waste","environmental","climate change",
+    "global warming","forest fire","deforestation","recycling","recycle"
+  ])) {
+    return 5;
+  }
+
+  // 17 – Social Issues
+  if (hasAny([
+    "protest","activism","homeless","poverty","inequality","violence","social issue",
+    "racism","discrimination","refugees"
+  ])) {
+    return 17;
+  }
+
+  // 16 – Science
+  if (hasAny([
+    "laboratory","lab","scientist","microscope","test tube","experiment",
+    "dna","molecule","molecular","formula","science"
+  ])) {
+    return 16;
+  }
+
+  // 15 – Culture and Religion
+  if (hasAny([
+    "religion","religious","church service","mosque","temple","bible","cross","prayer",
+    "cultural festival","tradition","traditional costume"
+  ])) {
+    return 15;
+  }
+
+  // 9 – Hobbies and Leisure
+  if (hasAny([
+    "hobby","hobbies","leisure","relaxation","reading","gaming","video game",
+    "crafts","handmade","knitting","sewing","painting","drawing"
+  ])) {
+    return 9;
+  }
+
+  // jei niekas normaliai „neužkabino“, paliekam AI kategoriją, bet apribojam 1–21
+  let category = parseInt(aiCategory, 10);
+  if (!Number.isInteger(category)) category = 11;
+  if (category < 1) category = 1;
+  if (category > 21) category = 21;
+  return category;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.statusCode = 405;
@@ -35,7 +202,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Paprastas dydžio check: labai dideli vaizdai -> graži klaida
     if (imageBase64.length > 12 * 1024 * 1024) {
       res.statusCode = 413;
       res.setHeader("Content-Type", "application/json");
@@ -59,67 +225,15 @@ export default async function handler(req, res) {
     const prompt = `
 You are a professional Adobe Stock top-seller metadata expert.
 
-Your task is to analyze the ENTIRE image (main subject, background, context, overall theme) and then choose ONE Adobe Stock category that best fits the **whole scene and commercial usage**, not just one object.
+Your task is to analyze the ENTIRE image (main subject, background, context, overall theme) and then choose ONE Adobe Stock category that best fits the whole scene and commercial usage, not just one object.
 
-THINK IN THREE STEPS (internally, without showing the steps):
+Think internally about:
+- main subject,
+- secondary elements,
+- overall scene theme,
+- what a buyer would search for.
 
-1) MAIN ELEMENTS
-- Identify the main subject (what is most visually dominant or central).
-- Identify important secondary elements (background, environment, props).
-- Note if it is people, landscape, architecture, food, technology, animals, etc.
-
-2) OVERALL SCENE & COMMERCIAL THEME
-- Decide what the image is REALLY about as a stock asset.
-- Example: 
-  - A person with laptop at home → could be "lifestyle" or "business" depending on focus.
-  - A scenic mountain with tiny hikers → more "landscape" than "people".
-  - A flower macro with blurred background → more "plants and flowers" than "landscape".
-- Think: "What would a buyer type into the search bar to find this image?"
-
-3) CATEGORY SELECTION (1–21)
-Choose the category by the **overall theme and use case**, NOT one random detail:
-
-  1 Animals               – animals, pets, wildlife as main theme.
-  2 Buildings and Architecture – architecture, buildings, interiors, cityscapes.
-  3 Business              – office, corporate, finance, teamwork, professional life.
-  4 Drinks                – beverages as main focus (coffee, tea, cocktails, etc.).
-  5 The Environment       – ecology, nature protection, pollution, environmental issues.
-  6 States of Mind        – emotional or conceptual mental states as main idea.
-  7 Food                  – food, cooking, recipes, meals as main subject.
-  8 Graphic Resources     – patterns, textures, icons, UI, templates, backgrounds.
-  9 Hobbies and Leisure   – leisure, hobbies, games, fun, relaxation.
-  10 Industry             – factories, work sites, industry machines, heavy production.
-  11 Landscape            – wide nature views: mountains, fields, sky, sea, outdoor scenery.
-  12 Lifestyle            – everyday life, home life, activities, living situations.
-  13 People               – a person or people clearly the main focus (portraits, people shots).
-  14 Plants and Flowers   – plants, trees, flowers as main focus, especially close-ups.
-  15 Culture and Religion – traditions, rituals, symbols of culture or religion.
-  16 Science              – labs, experiments, molecules, science visuals.
-  17 Social Issues        – protests, poverty, inequality, social problem themes.
-  18 Sports               – sport activities, athletes, training.
-  19 Technology           – devices, screens, digital tech, AI visuals, servers, code.
-  20 Transport            – vehicles (cars, trains, planes, bikes) as main theme.
-  21 Travel               – famous places, travel destinations, tourism, trip concepts.
-
-CATEGORY RULES:
-- Categories CAN repeat across images.
-- Do NOT choose category 13 (people) if no real or clearly visible person.
-- Do NOT choose category 12 (lifestyle) unless daily life / lifestyle is clearly the main theme.
-- If the image is mainly nature → prefer 11 (landscape) or 14 (plants and flowers) for close-ups.
-- If the image is mostly architecture or city → prefer 2 (buildings) or 21 (travel) if it's a recognisable destination.
-- Do NOT choose randomly – you must choose the best match for the whole scene.
-
-TITLE (max ~180 characters)
-- Commercial, literal, search-optimized.
-- No emojis, hashtags, or quotes.
-
-KEYWORDS (30–49)
-- ORDER IS IMPORTANT: most commercially relevant first.
-- Use search phrases buyers would actually type.
-- Avoid useless adjectives and redundant synonyms.
-- Use lowercase English only.
-
-Return ONLY pure JSON:
+Then output JSON ONLY:
 
 {
   "title": "string",
@@ -131,7 +245,6 @@ Filename (may help, but ignore if irrelevant):
 ${filename || "unknown"}
     `.trim();
 
-    // Responses API payload
     const payload = {
       model: "gpt-4.1-mini",
       input: [
@@ -162,7 +275,6 @@ ${filename || "unknown"}
 
     const apiData = await openaiRes.json();
 
-    // --- Extract text from Responses API ---
     let raw = "";
     if (apiData.output_text) {
       raw = apiData.output_text;
@@ -178,7 +290,6 @@ ${filename || "unknown"}
       throw new Error("Empty response from OpenAI");
     }
 
-    // --- Robust JSON parse: ištraukiam { ... } gabalą ---
     let parsedJson;
     try {
       const firstBrace = raw.indexOf("{");
@@ -193,22 +304,17 @@ ${filename || "unknown"}
       throw new Error("Failed to parse JSON from OpenAI");
     }
 
-    // TITLE – nelaužom žodžių, max ~200 simbolių
+    // TITLE
     let title = (parsedJson.title || "").toString().trim();
     if (!title) title = "ai generated image";
-
     const MAX_TITLE_CHARS = 200;
     if (title.length > MAX_TITLE_CHARS) {
       const slice = title.slice(0, MAX_TITLE_CHARS);
       const lastSpace = slice.lastIndexOf(" ");
-      if (lastSpace > 40) {
-        title = slice.slice(0, lastSpace);
-      } else {
-        title = slice;
-      }
+      title = lastSpace > 40 ? slice.slice(0, lastSpace) : slice;
     }
 
-    // KEYWORDS – iki 49, unikalūs, be tuščių
+    // KEYWORDS
     let keywordsArray = Array.isArray(parsedJson.keywords)
       ? parsedJson.keywords.map((k) => String(k).toLowerCase().trim())
       : [];
@@ -217,15 +323,11 @@ ${filename || "unknown"}
       .filter((v, i, a) => a.indexOf(v) === i)
       .slice(0, 49);
 
-    // CATEGORY – papildoma apsauga 1–21
-    let category = parseInt(parsedJson.category, 10);
-    if (!Number.isInteger(category)) {
-      category = 11; // neutrali gamtos kategorija, jei visai nesąmonė
-    } else if (category < 1) {
-      category = 1;
-    } else if (category > 21) {
-      category = 21;
-    }
+    // AI kategorija iš modelio
+    let aiCategory = parsedJson.category;
+
+    // MŪSŲ logika – perrašom kategoriją pagal visą sceną
+    const finalCategory = decideCategory(title, keywordsArray, aiCategory);
 
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json");
@@ -233,7 +335,7 @@ ${filename || "unknown"}
       JSON.stringify({
         title,
         keywords: keywordsArray,
-        category
+        category: finalCategory
       })
     );
   } catch (err) {
@@ -247,4 +349,3 @@ ${filename || "unknown"}
     );
   }
 }
-
