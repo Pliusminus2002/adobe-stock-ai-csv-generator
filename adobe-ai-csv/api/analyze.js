@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     }
 
     // Paprastas dydžio check: labai dideli vaizdai -> graži klaida
-    if (imageBase64.length > 12 * 1024 * 1024) { // ~12MB base64 string
+    if (imageBase64.length > 12 * 1024 * 1024) {
       res.statusCode = 413;
       res.setHeader("Content-Type", "application/json");
       res.end(
@@ -98,7 +98,6 @@ If the filename gives useful hints, you can use it too.
 Filename: ${filename || "unknown"}
     `.trim();
 
-    // --- OpenAI Responses API payload ---
     const payload = {
       model: "gpt-4.1-mini",
       input: [
@@ -157,7 +156,7 @@ Filename: ${filename || "unknown"}
 
     const data = await openaiRes.json();
 
-    // Responses API turi output[] ir patogų output_text.
+    // Responses API output extraction
     let raw = "";
     if (data.output_text) {
       raw = data.output_text;
@@ -181,7 +180,6 @@ Filename: ${filename || "unknown"}
       throw new Error("Failed to parse JSON from OpenAI");
     }
 
-    // Sutvarkom ir “apsaugom” laukus
     let title = (parsedJson.title || "").toString().trim();
     if (!title) title = "AI generated image";
     if (title.length > 70) title = title.slice(0, 70);
