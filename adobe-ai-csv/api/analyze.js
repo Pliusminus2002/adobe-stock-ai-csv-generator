@@ -57,54 +57,66 @@ export default async function handler(req, res) {
     }
 
     const prompt = `
-You are a professional Adobe Stock top-seller metadata expert who knows how to optimize metadata for maximum search visibility and commercial sales.
+You are a professional Adobe Stock top-seller metadata expert.
 
-You MUST choose the correct Adobe Stock category based on the MAIN SUBJECT of the image. Categories CAN repeat across images, but they MUST match the photo content.
+Your task is to analyze the ENTIRE image (main subject, background, context, overall theme) and then choose ONE Adobe Stock category that best fits the **whole scene and commercial usage**, not just one object.
 
-Use this guide carefully:
+THINK IN THREE STEPS (internally, without showing the steps):
 
-1  Animals               – main subject is animals, wildlife, pets.
-2  Buildings and Architecture – exterior or interior architecture, cityscapes, facades.
-3  Business              – offices, finance, corporate, teamwork, meetings.
-4  Drinks                – beverages as main subject (coffee, cocktails, water, juice).
-5  The Environment       – ecology, pollution, climate, environmental issues.
-6  States of Mind        – emotions, concepts like stress, happiness, sadness, mental states.
-7  Food                  – food is the main subject (meals, ingredients, cooking scenes).
-8  Graphic Resources     – icons, patterns, UI, templates, textures, abstract backgrounds.
-9  Hobbies and Leisure   – hobbies, free time, games, relaxation.
-10 Industry              – factories, production, industrial equipment.
-11 Landscape             – nature scenes, mountains, fields, sky, sea, nature backgrounds.
-12 Lifestyle             – daily life, home life, activities, people living their life.
-13 People                – portrait, person/people clearly the main focus.
-14 Plants and Flowers    – flowers, plants, trees as main subject.
-15 Culture and Religion  – traditions, cultural symbols, religious subjects.
-16 Science               – lab, experiments, technology as science, molecules, data.
-17 Social Issues         – poverty, protests, inequality, social problems.
-18 Sports                – sports activities, athletes, training.
-19 Technology            – devices, digital tech, laptops, phones, servers, AI visuals.
-20 Transport             – cars, trains, bikes, any vehicles as main subject.
-21 Travel                – famous locations, landmarks, tourist places, travel concepts.
+1) MAIN ELEMENTS
+- Identify the main subject (what is most visually dominant or central).
+- Identify important secondary elements (background, environment, props).
+- Note if it is people, landscape, architecture, food, technology, animals, etc.
+
+2) OVERALL SCENE & COMMERCIAL THEME
+- Decide what the image is REALLY about as a stock asset.
+- Example: 
+  - A person with laptop at home → could be "lifestyle" or "business" depending on focus.
+  - A scenic mountain with tiny hikers → more "landscape" than "people".
+  - A flower macro with blurred background → more "plants and flowers" than "landscape".
+- Think: "What would a buyer type into the search bar to find this image?"
+
+3) CATEGORY SELECTION (1–21)
+Choose the category by the **overall theme and use case**, NOT one random detail:
+
+  1 Animals               – animals, pets, wildlife as main theme.
+  2 Buildings and Architecture – architecture, buildings, interiors, cityscapes.
+  3 Business              – office, corporate, finance, teamwork, professional life.
+  4 Drinks                – beverages as main focus (coffee, tea, cocktails, etc.).
+  5 The Environment       – ecology, nature protection, pollution, environmental issues.
+  6 States of Mind        – emotional or conceptual mental states as main idea.
+  7 Food                  – food, cooking, recipes, meals as main subject.
+  8 Graphic Resources     – patterns, textures, icons, UI, templates, backgrounds.
+  9 Hobbies and Leisure   – leisure, hobbies, games, fun, relaxation.
+  10 Industry             – factories, work sites, industry machines, heavy production.
+  11 Landscape            – wide nature views: mountains, fields, sky, sea, outdoor scenery.
+  12 Lifestyle            – everyday life, home life, activities, living situations.
+  13 People               – a person or people clearly the main focus (portraits, people shots).
+  14 Plants and Flowers   – plants, trees, flowers as main focus, especially close-ups.
+  15 Culture and Religion – traditions, rituals, symbols of culture or religion.
+  16 Science              – labs, experiments, molecules, science visuals.
+  17 Social Issues        – protests, poverty, inequality, social problem themes.
+  18 Sports               – sport activities, athletes, training.
+  19 Technology           – devices, screens, digital tech, AI visuals, servers, code.
+  20 Transport            – vehicles (cars, trains, planes, bikes) as main theme.
+  21 Travel               – famous places, travel destinations, tourism, trip concepts.
 
 CATEGORY RULES:
-- Choose EXACTLY ONE category (1–21).
-- Category MUST match the main subject of the image.
-- Do NOT choose category 13 (people) if no real person is visible.
-- Do NOT choose category 12 (lifestyle) unless daily life / lifestyle is clearly the focus.
-- If the scene is mostly nature, use 11 (landscape) or 14 (plants and flowers) if flowers/plants are the main close-up.
-- If the scene is mostly architecture/city, prefer 2 (buildings and architecture) or 21 (travel) if it's a famous place.
+- Categories CAN repeat across images.
+- Do NOT choose category 13 (people) if no real or clearly visible person.
+- Do NOT choose category 12 (lifestyle) unless daily life / lifestyle is clearly the main theme.
+- If the image is mainly nature → prefer 11 (landscape) or 14 (plants and flowers) for close-ups.
+- If the image is mostly architecture or city → prefer 2 (buildings) or 21 (travel) if it's a recognisable destination.
+- Do NOT choose randomly – you must choose the best match for the whole scene.
 
 TITLE (max ~180 characters)
-- Must improve search visibility.
-- Simple, commercial tone.
+- Commercial, literal, search-optimized.
 - No emojis, hashtags, or quotes.
-- Literal but optimized for search intent.
 
 KEYWORDS (30–49)
-- ORDER IS IMPORTANT: rank by commercial importance.
-- Use search-intent keywords buyers actually use on stock sites.
-- Avoid synonyms that add no search value.
-- Avoid useless adjectives (beautiful, nice, lovely, soft, etc.).
-- Avoid personal names, unknown brands, opinions.
+- ORDER IS IMPORTANT: most commercially relevant first.
+- Use search phrases buyers would actually type.
+- Avoid useless adjectives and redundant synonyms.
 - Use lowercase English only.
 
 Return ONLY pure JSON:
@@ -150,7 +162,7 @@ ${filename || "unknown"}
 
     const apiData = await openaiRes.json();
 
-    // --- Extract text ---
+    // --- Extract text from Responses API ---
     let raw = "";
     if (apiData.output_text) {
       raw = apiData.output_text;
@@ -166,7 +178,7 @@ ${filename || "unknown"}
       throw new Error("Empty response from OpenAI");
     }
 
-    // --- Robust JSON PARSE ---
+    // --- Robust JSON parse: ištraukiam { ... } gabalą ---
     let parsedJson;
     try {
       const firstBrace = raw.indexOf("{");
@@ -177,7 +189,7 @@ ${filename || "unknown"}
       } else {
         throw new Error("No JSON object found in response");
       }
-    } catch (e) {
+    } catch {
       throw new Error("Failed to parse JSON from OpenAI");
     }
 
@@ -205,11 +217,10 @@ ${filename || "unknown"}
       .filter((v, i, a) => a.indexOf(v) === i)
       .slice(0, 49);
 
-    // CATEGORY – AI privalo duoti 1–21, bet mes dar apsaugom
+    // CATEGORY – papildoma apsauga 1–21
     let category = parseInt(parsedJson.category, 10);
     if (!Number.isInteger(category)) {
-      // jei modelis visai nukvailiojo – geriau bent landscape kaip neutrali
-      category = 11;
+      category = 11; // neutrali gamtos kategorija, jei visai nesąmonė
     } else if (category < 1) {
       category = 1;
     } else if (category > 21) {
@@ -236,3 +247,4 @@ ${filename || "unknown"}
     );
   }
 }
+
